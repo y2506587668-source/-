@@ -39,7 +39,11 @@ col2.metric("情绪阶段", emotion)
 
 st.header("📈 板块强度排行")
 
-sector_df = ak.stock_board_industry_name_em()
+try:
+    sector_df = ak.stock_board_industry_name_em()
+except:
+    st.error("板块数据暂时无法获取（可能被接口限制）")
+    sector_df = None
 sector_df = sector_df.sort_values("涨跌幅", ascending=False)
 
 st.dataframe(sector_df.head(10)[["板块名称", "涨跌幅"]])
