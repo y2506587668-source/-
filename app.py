@@ -1,127 +1,117 @@
 import streamlit as st
 import akshare as ak
 import pandas as pd
-import numpy as np
-from datetime import datetime
 from openai import OpenAI
 
-st.set_page_config(layout="wide")
-st.title("📊 超短辅助判断系统")
+# =============================
+# 页面基础设置
+# =============================
+st.set_page_config(page_title="板块 + 新闻情绪量化系统", layout="wide")
+st.title("📊 板块强度 + 新闻情绪评分系统")
 
 # =============================
-# 1️⃣ 市场情绪
+# OpenAI 初始化
 # =============================
-
-st.header("🔥 市场情绪")
-
-today = datetime.now().strftime("%Y%m%d")
-
-try:
-    limit_df = ak.stock_zt_pool_em(date=today)
-    limit_count = len(limit_df)
-except:
-    limit_count = 0
-
-if limit_count > 80:
-    emotion = "主升期 🔥"
-elif limit_count < 30:
-    emotion = "冰点 ❄"
-else:
-    emotion = "震荡期 ⚖"
-
-col1, col2 = st.columns(2)
-col1.metric("涨停数量", limit_count)
-col2.metric("情绪阶段", emotion)
+client = OpenAI(api_key="你的APIKEY")  # ←←← 填入你的key
 
 # =============================
-# 2️⃣ 板块强度
+# 新闻情绪判断函数
 # =============================
+def get_news_sentiment(news_text):
 
-st.header("📈 板块强度排行")
+    prompt = f"""
+    请判断以下新闻对A股整体情绪是利好、利空还是中性。
+    只回答：利好 / 利空 / 中性
 
-try:
-    sector_df = ak.stock_board_industry_name_em()
-except:
-    st.error("板块数据暂时无法获取（可能被接口限制）")
-    sector_df = None
-sector_df = sector_df.sort_values("涨跌幅", ascending=False)
+    新闻：
+    {news_text}
+    """
 
-st.dataframe(sector_df.head(10)[["板块名称", "涨跌幅"]])
-
-top_sector = sector_df.iloc[0]["板块名称"]
-
-# =============================
-# 3️⃣ 龙头监控
-# =============================
-
-st.header("🚀 当前强势龙头")
-
-sector_stocks = ak.stock_board_industry_cons_em(symbol=top_sector)
-sector_stocks = sector_stocks.sort_values("涨跌幅", ascending=False)
-
-leader = sector_stocks.iloc[0]
-
-st.write(f"🔥 当前最强板块：{top_sector}")
-st.write(f"龙头：{leader['名称']}  涨跌幅：{leader['涨跌幅']}%")
-
-# 分钟K线
-try:
-    minute_df = ak.stock_zh_a_minute(symbol=leader["代码"], period="5")
-    minute_df["时间"] = pd.to_datetime(minute_df["时间"])
-    minute_df = minute_df.set_index("时间")
-    st.line_chart(minute_df["收盘"])
-except:
-    st.info("暂无分钟数据")
-
-# =============================
-# 4️⃣ 全球新闻 + AI判断
-# =============================
-
-st.header("🌍 今日全球新闻")
-
-news_df = ak.news_global_cls()
-news_titles = news_df["标题"].head(10)
-
-selected_news = st.selectbox("选择新闻", news_titles)
-
-OPENAI_KEY = st.text_input("输入OpenAI API Key（可选）", type="password")
-
-if st.button("分析新闻影响"):
-
-    if OPENAI_KEY != "":
-        client = OpenAI(api_key=OPENAI_KEY)
-
-        prompt = f"""
-        判断这条新闻对A股是利好还是利空，
-        给出影响板块，
-        简要说明原因：
-        {selected_news}
-        """
-
-        res = client.chat.completions.create(
+    try:
+        response = client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
         )
 
-        st.write(res.choices[0].message.content)
+        result = response.choices[0].message.content.strip()
 
+        if "利好" in result:
+            return 1
+        elif "利空" in result:
+            return -1
+        else:
+            return 0
+
+    except Exception as e:
+        st.error("新闻情绪分析失败")
+        st.text(str(e))
+        return 0
+
+
+# =============================
+# 板块综合评分计算
+# =============================
+def calculate_total_score(sector_df, news_score):
+
+    # 转换涨跌幅
+    sector_df["涨跌幅"] = sector_df["涨跌幅"].str.replace("%", "").astype(float)
+
+    # 标准化
+    max_val = sector_df["涨跌幅"].max()
+    min_val = sector_df["涨跌幅"].min()
+
+    if max_val == min_val:
+        sector_df["板块强度"] = 0.5
     else:
-        st.warning("未输入API Key，仅做参考阅读")
+        sector_df["板块强度"] = (
+            (sector_df["涨跌幅"] - min_val) / (max_val - min_val)
+        )
+
+    # 综合评分
+    sector_df["综合评分"] = 0.6 * sector_df["板块强度"] + 0.4 * news_score
+
+    return sector_df.sort_values("综合评分", ascending=False)
+
 
 # =============================
-# 5️⃣ 辅助判断建议
+# 页面输入区域
 # =============================
+news_text = st.text_area("📰 输入新闻内容")
 
-st.header("🧠 辅助决策建议")
+if st.button("🚀 开始分析"):
 
-if emotion == "主升期 🔥":
-    st.success("情绪较好，可优先关注强势板块龙头回踩机会")
+    if news_text.strip() == "":
+        st.warning("请输入新闻内容")
+        st.stop()
 
-elif emotion == "冰点 ❄":
-    st.error("情绪较差，建议轻仓或观望")
+    # ========= 新闻情绪 =========
+    with st.spinner("正在分析新闻情绪..."):
+        news_score = get_news_sentiment(news_text)
 
-else:
-    st.info("震荡阶段，优选强势板块龙头低吸")
+    if news_score == 1:
+        st.success("新闻情绪判断：利好 📈")
+    elif news_score == -1:
+        st.error("新闻情绪判断：利空 📉")
+    else:
+        st.info("新闻情绪判断：中性 ⚖️")
 
-st.write(f"当前最强方向：{top_sector}")
-st.write("策略建议：强板块 + 龙头 + 分时回踩 + 成交量配合")
+    # ========= 获取板块 =========
+    with st.spinner("正在获取板块数据..."):
+        try:
+            sector_df = ak.stock_board_industry_name_em()
+
+            if sector_df is None or sector_df.empty:
+                st.warning("板块数据暂时无法获取（可能被接口限制）")
+                st.stop()
+
+        except Exception as e:
+            st.error("板块接口异常")
+            st.text(str(e))
+            st.stop()
+
+    # ========= 计算综合评分 =========
+    result_df = calculate_total_score(sector_df, news_score)
+
+    st.subheader("🔥 综合评分排名（前10）")
+    st.dataframe(result_df.head(10), use_container_width=True)
