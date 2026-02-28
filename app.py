@@ -4,7 +4,7 @@ import pandas as pd
 from openai import OpenAI
 
 # =============================
-# 页面基础设置
+# 页面设置
 # =============================
 st.set_page_config(page_title="全球新闻 + 板块量化系统", layout="wide")
 st.title("🌍 全球新闻驱动板块评分系统")
@@ -12,7 +12,7 @@ st.title("🌍 全球新闻驱动板块评分系统")
 # =============================
 # OpenAI 初始化
 # =============================
-client = OpenAI(api_key="你的APIKEY")  # ←←← 填入你的OpenAI key
+client = OpenAI(api_key="你的APIKEY")  # ← 填入你的 OpenAI Key
 
 # =============================
 # 自动抓取全球新闻
@@ -20,8 +20,7 @@ client = OpenAI(api_key="你的APIKEY")  # ←←← 填入你的OpenAI key
 @st.cache_data(ttl=300)
 def get_global_news():
     try:
-        # 最新新闻，可根据 akshare 版本替换函数
-        news_df = ak.stock_news_em()
+        news_df = ak.stock_news_em()  # 最新新闻
         if news_df is None or news_df.empty:
             return None
         return news_df.head(10)
@@ -64,7 +63,7 @@ def analyze_news_batch(news_list):
 # 板块评分
 # =============================
 def calculate_score(sector_df, news_score):
-    # 涨跌幅转 float
+    # 涨跌幅列自动识别
     if "涨跌幅" in sector_df.columns:
         sector_df["涨跌幅"] = sector_df["涨跌幅"].str.replace("%","").astype(float)
     elif "changeRate" in sector_df.columns:
@@ -80,7 +79,6 @@ def calculate_score(sector_df, news_score):
     else:
         sector_df["板块强度"] = (sector_df["涨跌幅"] - min_val) / (max_val - min_val)
 
-    # 综合评分
     sector_df["综合评分"] = 0.6 * sector_df["板块强度"] + 0.4 * news_score
     return sector_df.sort_values("综合评分", ascending=False)
 
@@ -88,6 +86,7 @@ def calculate_score(sector_df, news_score):
 # 主程序
 # =============================
 if st.button("🚀 自动分析全球新闻"):
+
     # 1️⃣ 获取新闻
     with st.spinner("抓取全球新闻中..."):
         news_df = get_global_news()
@@ -96,14 +95,10 @@ if st.button("🚀 自动分析全球新闻"):
         st.error("新闻获取失败或为空")
         st.stop()
 
-    # 2️⃣ 自动适配列名显示新闻
+    # 2️⃣ 自动适配新闻标题列
     st.write("新闻列名:", news_df.columns.tolist())
-    if "标题" in news_df.columns:
-        title_col = "标题"
-    elif "title" in news_df.columns:
-        title_col = "title"
-    else:
-        title_col = news_df.columns[0]  # 取第一列备用
+    possible_title_cols = ["标题", "title", "news_title"]
+    title_col = next((c for c in possible_title_cols if c in news_df.columns), news_df.columns[0])
 
     st.subheader("📰 最新全球新闻")
     st.dataframe(news_df[[title_col]])
