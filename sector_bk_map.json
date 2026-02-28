@@ -1,0 +1,33 @@
+{
+  "meta": {
+    "schema_version": 1,
+    "last_updated": "2026-02-28",
+    "notes": "示例模板：请按你的“申万/自定义”板块体系补全 BK 代码与关键词。"
+  },
+  "sectors": [
+    {
+      "enabled": true,
+      "sector": "半导体",
+      "bk_codes": ["BK0475"],
+      "keywords": ["半导体", "芯片", "晶圆", "封测", "EDA", "光刻"],
+      "priority": 80,
+      "notes": "示例：用你自己的 BK 代码覆盖"
+    },
+    {
+      "enabled": true,
+      "sector": "AI/算力",
+      "bk_codes": ["BK0737"],
+      "keywords": ["人工智能", "大模型", "算力", "GPU", "AIGC", "数据中心", "IDC", "服务器"],
+      "priority": 70,
+      "notes": "示例：AI 相关"
+    },
+    {
+      "enabled": true,
+      "sector": "金融/券商",
+      "bk_codes": ["BK0473"],
+      "keywords": ["券商", "证券", "银行", "保险", "降准", "降息", "资本市场"],
+      "priority": 60,
+      "notes": "示例：证券/银行/保险等"
+    }
+  ]
+}
