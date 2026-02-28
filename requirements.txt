@@ -3,3 +3,4 @@ akshare
 pandas
 numpy
 openai
+feedparser
